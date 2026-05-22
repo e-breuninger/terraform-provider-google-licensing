@@ -1,0 +1,21 @@
+# Compiled provider binary
+terraform-provider-google-licensing
+terraform-provider-google-licensing_*
+
+# Terraform working directories
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.*
+**/terraform.tfstate.*.backup
+**/crash.log
+**/crash.*.log
+**/.claude/
+
+# GoReleaser dist output
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -23,7 +23,7 @@ fmt:
 	gofmt -s -w .
 
 generate:
-	cd tools && go generate ./...
+	go generate ./...
 
 test:
 	go test ./... -v -timeout 120s

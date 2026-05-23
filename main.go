@@ -1,4 +1,4 @@
-//go:generate go tool tfplugindocs generate -provider-name google-licensing
+//go:generate go tool tfplugindocs generate -provider-name googleenterpriselicense
 
 package main
 

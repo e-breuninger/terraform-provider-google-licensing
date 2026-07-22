@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -17,8 +18,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &geminiUserLicenseResource{}
-	_ resource.ResourceWithConfigure = &geminiUserLicenseResource{}
+	_ resource.Resource                = &geminiUserLicenseResource{}
+	_ resource.ResourceWithConfigure   = &geminiUserLicenseResource{}
+	_ resource.ResourceWithImportState = &geminiUserLicenseResource{}
 )
 
 func NewGeminiUserLicenseResource() resource.Resource {
@@ -164,9 +166,8 @@ func (r *geminiUserLicenseResource) Read(ctx context.Context, req resource.ReadR
 	project := state.Project.ValueString()
 	location := state.Location.ValueString()
 	userID := state.UserID.ValueString()
-	expectedLicenseConfig := state.LicenseConfig.ValueString()
 
-	license, found, err := r.findUserLicense(ctx, project, location, userID, expectedLicenseConfig)
+	license, found, err := r.findUserLicense(ctx, project, location, userID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading Gemini Enterprise license", err.Error())
 		return
@@ -180,6 +181,10 @@ func (r *geminiUserLicenseResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
+	// Reflect whatever license is actually assigned, even if it differs from
+	// what's in state. Since license_config forces replacement, a mismatch
+	// surfaces to the user as a plan diff instead of the resource silently
+	// vanishing from state.
 	state.LicenseConfig = types.StringValue(license.LicenseConfig)
 	state.State = types.StringValue(license.LicenseAssignmentState)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -210,6 +215,25 @@ func (r *geminiUserLicenseResource) Delete(ctx context.Context, req resource.Del
 	if _, err := r.batchUpdate(ctx, project, location, body); err != nil {
 		resp.Diagnostics.AddError("Error revoking Gemini Enterprise license", err.Error())
 	}
+}
+
+func (r *geminiUserLicenseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.SplitN(req.ID, "/", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			fmt.Sprintf("Expected format <project>/<location>/<user_id>, got: %q", req.ID),
+		)
+		return
+	}
+
+	state := geminiUserLicenseModel{
+		ID:       types.StringValue(req.ID),
+		Project:  types.StringValue(parts[0]),
+		Location: types.StringValue(parts[1]),
+		UserID:   types.StringValue(parts[2]),
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 type geminiAPIError struct {
@@ -305,7 +329,11 @@ func (r *geminiUserLicenseResource) batchUpdate(ctx context.Context, project, lo
 	return r.doRequest(ctx, http.MethodPost, url, body)
 }
 
-func (r *geminiUserLicenseResource) findUserLicense(ctx context.Context, project, location, userID, licenseConfig string) (*geminiUserLicenseEntry, bool, error) {
+func (r *geminiUserLicenseResource) findUserLicense(ctx context.Context, project, location, userID string) (*geminiUserLicenseEntry, bool, error) {
+	// The Discovery Engine API's `filter=user_principal = ...` query parameter has been
+	// observed to return an empty result for users who do have a license assigned (confirmed
+	// both via this provider and via direct API calls), so lookups scan every page instead of
+	// relying on server-side filtering.
 	baseURL := r.userStoreBase(project, location) + "/userLicenses"
 	pageToken := ""
 
@@ -336,7 +364,7 @@ func (r *geminiUserLicenseResource) findUserLicense(ctx context.Context, project
 				"licenseConfig": page.UserLicenses[i].LicenseConfig,
 				"state":         page.UserLicenses[i].LicenseAssignmentState,
 			})
-			if page.UserLicenses[i].UserPrincipal == userID && page.UserLicenses[i].LicenseConfig == licenseConfig {
+			if page.UserLicenses[i].UserPrincipal == userID {
 				return &page.UserLicenses[i], true, nil
 			}
 		}

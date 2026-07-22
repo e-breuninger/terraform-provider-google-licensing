@@ -1,0 +1,38 @@
+
+terraform {
+  required_providers {
+    googleenterpriselicense = {
+      source  = "e-breuninger/google-licensing"
+      version = "~> 0.1"
+    }
+  }
+}
+
+provider "googleenterpriselicense" {
+  # Uses Application Default Credentials when omitted.
+  # credentials      = file("service-account.json")
+  # credentials_file = "/path/to/service-account.json"
+}
+
+# Assign a Google Workspace Business Starter license
+resource "googleenterpriselicense_assignment" "alice" {
+  product_id = "Google-Apps"
+  sku_id     = "1010020027"
+  user_id    = "alice@example.com"
+}
+
+# Assign a NotebookLM Enterprise license
+resource "googleenterpriselicense_gemini_user_license" "example_notebooklm" {
+  project        = "my-gcp-project"
+  location       = "eu"
+  user_id        = "alice@example.com"
+  license_config = "projects/PROJECT_NUMBER/locations/eu/licenseConfigs/NOTEBOOKLM_CONFIG_ID"
+}
+
+# Assign a Gemini Enterprise license
+resource "googleenterpriselicense_gemini_user_license" "example_gemini" {
+  project        = "my-gcp-project"
+  location       = "eu"
+  user_id        = "bob@example.com"
+  license_config = "projects/PROJECT_NUMBER/locations/eu/licenseConfigs/GEMINI_CONFIG_ID"
+}

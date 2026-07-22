@@ -19,3 +19,12 @@ dist/
 .idea/
 .vscode/
 *.swp
+
+# Secrets — never commit private keys
+*.asc
+gpg-private-key*
+find.txt
+
+# Local test config — contains real project/user data, never commit
+test/main.tf
+test/licenses

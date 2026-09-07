@@ -28,3 +28,4 @@ find.txt
 # Local test config — contains real project/user data, never commit
 test/main.tf
 test/licenses
+test-impersonation/main.tf

@@ -6,8 +6,10 @@ description: |-
   assignments via the Enterprise License Manager API https://developers.google.com/admin-sdk/licensing
   and Gemini Enterprise (NotebookLM) licenses via the Discovery Engine API.
   Authentication
-  The provider supports three credential strategies, evaluated in order:
-  credentials – inline JSON of a service-account key (or user credentials).credentials_file – path to a JSON credentials file.Application Default Credentials (ADC) – used automatically when neither of the above is set.
+  The provider supports four credential strategies, evaluated in order:
+  access_token – a pre-fetched OAuth2 access token, e.g. minted for an impersonated
+  service account via the google_service_account_access_token data source of the
+  official google provider.credentials – inline JSON of a service-account key (or user credentials).credentials_file – path to a JSON credentials file.Application Default Credentials (ADC) – used automatically when none of the above is set.
 ---
 
 # googleenterpriselicense Provider
@@ -18,11 +20,14 @@ and Gemini Enterprise (NotebookLM) licenses via the Discovery Engine API.
 
 ## Authentication
 
-The provider supports three credential strategies, evaluated in order:
+The provider supports four credential strategies, evaluated in order:
 
-1. **credentials** – inline JSON of a service-account key (or user credentials).
-2. **credentials_file** – path to a JSON credentials file.
-3. **Application Default Credentials (ADC)** – used automatically when neither of the above is set.
+1. **access_token** – a pre-fetched OAuth2 access token, e.g. minted for an impersonated
+   service account via the `google_service_account_access_token` data source of the
+   official `google` provider.
+2. **credentials** – inline JSON of a service-account key (or user credentials).
+3. **credentials_file** – path to a JSON credentials file.
+4. **Application Default Credentials (ADC)** – used automatically when none of the above is set.
 
 ## Example Usage
 
@@ -55,5 +60,6 @@ provider "googleenterpriselicense" {}
 
 ### Optional
 
+- `access_token` (String, Sensitive) A pre-fetched OAuth2 access token, typically minted for an impersonated service account (e.g. via the `google_service_account_access_token` data source). Takes precedence over `credentials` and `credentials_file`.
 - `credentials` (String, Sensitive) JSON content of a Google service-account key file. Can also be set via the `GOOGLE_CREDENTIALS` environment variable.
 - `credentials_file` (String) Path to a JSON credentials file. Can also be set via the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.

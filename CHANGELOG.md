@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-07
+
+### Added
+
+- Provider `access_token` attribute — accepts a pre-fetched OAuth2 access token, e.g. minted for an impersonated service account via the `google_service_account_access_token` data source of the official `google` provider. Takes precedence over `credentials` and `credentials_file`.
+
 ## [0.1.0] - 2026-07-22
 
 ### Added

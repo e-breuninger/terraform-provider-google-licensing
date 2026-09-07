@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"golang.org/x/oauth2"
 	"google.golang.org/api/licensing/v1"
 	"google.golang.org/api/option"
 	htransport "google.golang.org/api/transport/http"
@@ -46,6 +47,7 @@ type googleEnterpriseLicenseProvider struct {
 type providerModel struct {
 	Credentials     types.String `tfsdk:"credentials"`
 	CredentialsFile types.String `tfsdk:"credentials_file"`
+	AccessToken     types.String `tfsdk:"access_token"`
 }
 
 func (p *googleEnterpriseLicenseProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -61,11 +63,14 @@ and Gemini Enterprise (NotebookLM) licenses via the Discovery Engine API.
 
 ## Authentication
 
-The provider supports three credential strategies, evaluated in order:
+The provider supports four credential strategies, evaluated in order:
 
-1. **credentials** – inline JSON of a service-account key (or user credentials).
-2. **credentials_file** – path to a JSON credentials file.
-3. **Application Default Credentials (ADC)** – used automatically when neither of the above is set.`,
+1. **access_token** – a pre-fetched OAuth2 access token, e.g. minted for an impersonated
+   service account via the ` + "`google_service_account_access_token`" + ` data source of the
+   official ` + "`google`" + ` provider.
+2. **credentials** – inline JSON of a service-account key (or user credentials).
+3. **credentials_file** – path to a JSON credentials file.
+4. **Application Default Credentials (ADC)** – used automatically when none of the above is set.`,
 
 		Attributes: map[string]schema.Attribute{
 			"credentials": schema.StringAttribute{
@@ -76,6 +81,11 @@ The provider supports three credential strategies, evaluated in order:
 			"credentials_file": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Path to a JSON credentials file. Can also be set via the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.",
+			},
+			"access_token": schema.StringAttribute{
+				Optional:            true,
+				Sensitive:           true,
+				MarkdownDescription: "A pre-fetched OAuth2 access token, typically minted for an impersonated service account (e.g. via the `google_service_account_access_token` data source). Takes precedence over `credentials` and `credentials_file`.",
 			},
 		},
 	}
@@ -90,8 +100,9 @@ func (p *googleEnterpriseLicenseProvider) Configure(ctx context.Context, req pro
 
 	credentialsJSON := resolveStringValue(config.Credentials, "GOOGLE_CREDENTIALS")
 	credentialsFile := resolveStringValue(config.CredentialsFile, "GOOGLE_APPLICATION_CREDENTIALS")
+	accessToken := resolveStringValue(config.AccessToken, "GOOGLE_OAUTH_ACCESS_TOKEN")
 
-	client, err := buildProviderClient(credentialsJSON, credentialsFile)
+	client, err := buildProviderClient(accessToken, credentialsJSON, credentialsFile)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to build API clients", err.Error())
 		return
@@ -116,12 +127,23 @@ func (p *googleEnterpriseLicenseProvider) Functions(_ context.Context) []func() 
 	return nil
 }
 
-func buildProviderClient(credentialsJSON, credentialsFile string) (*providerClient, error) {
+func buildProviderClient(accessToken, credentialsJSON, credentialsFile string) (*providerClient, error) {
 	bgCtx := context.Background()
 
 	var licensingOpts, httpOpts []option.ClientOption
 
 	switch {
+	case accessToken != "":
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+		licensingOpts = []option.ClientOption{
+			option.WithTokenSource(tokenSource),
+			option.WithScopes(licensingScope),
+		}
+		httpOpts = []option.ClientOption{
+			option.WithTokenSource(tokenSource),
+			option.WithScopes(cloudPlatformScope),
+		}
+
 	case credentialsJSON != "":
 		if !json.Valid([]byte(credentialsJSON)) {
 			return nil, fmt.Errorf("credentials value is not valid JSON")
